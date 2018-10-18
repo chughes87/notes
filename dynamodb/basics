@@ -1,0 +1,192 @@
+Why Dynamo?
+    Good for high volume and high frequency
+
+Terminology
+
+    SQL         |   Dynamo
+    ---------------------------------------
+    Table       |   Table
+    Rows        |   Items (rows)
+    Columns     |   Attributes (fields)
+    Primary Key |   Primary Key (mandatory)
+    Indexes     |   Local Secondary Indexes
+    Views       |   Global Secondary Indexes
+
+    Dynamo db as json data store. Each Item has a collection of attributes. 
+    Can NOT define a table without a primary key! (this helps with performance)
+    Can not query db without using primary key and indexes
+    Scanning IS possible but costly
+    Sort keys
+    Local Secondary Indexes - Share partition key with primary key but have a different sort key
+    Global Secondary Indexes - Indexes where the partition key is different from the partition key of the primary key
+
+Tables and Naming Conventions
+
+    No concept of having multiple databases
+        tables are top level entity
+        All tables in a region can be looked at as a single database
+            in order to better organize this we should follow naming conventions for tables
+    
+    Prefix table names to create namespaces
+        prefix.tablename or prefix_tablename for example
+
+    Different regions can have their own tables which are separate from each other
+        two regions can have two tables with the same name but they are still considered separate entities
+        "Tables" will be referring to a table in a single region
+    
+    Any two tables in dynamodb are separate from each other
+        there is no concept of foreign key relationships in dynamodb
+        can implement relationships with our own logic, but these relationships will not be maintained by dynamodb
+            This allows our table queries to be highly efficient because there are no table joins possible
+    
+    ACID properties of relational databases are not present because we want more flexibility than that can provide
+
+Data Types
+
+    Scalar types
+        string, number, binary, boolean, null
+
+        Keys can ONLY be scalar (excluding boolean and null)
+    
+        CAN NOT STORE EMPTY VALUES IN DYNAMODB
+            String must have at least one character
+    
+        Maximum data for any item is 400kb~
+    
+        Binary
+            blobs, compressed text, encrypted data, images, etc
+            If used for index attrs, size must be under 2kB if used as a hash key and 1kB if used as a sort key **
+
+    Set Types
+        String Set, number set, binary set
+        All elements in a set must be the same scalar type
+        empty sets are not allowed
+
+    Document Type
+        Complex structure with nested attribues
+        e.g. list or map
+            can be nested within each other
+
+        Can have empty lists or maps in dynamo!
+        
+
+    List Types
+        Can have multiple data types unlike the Set Type
+
+    Maps
+        Unordered collection of key value pairs
+        ideal for storing JSON documents
+        No restrictions on data types stored in Maps
+
+    Dynamo DB data types do not store data in JSON
+        Not visible to end users or customers
+        maps json docus to native DynamoDb types
+
+Consistency Model
+
+    Data centers are hosted in regions and availability zones
+
+    Regions
+        Separate Geographic area
+        Has multiple isolated locations known as Availability Zones
+
+    Availability Zones
+        May have multiple facilities or datacenters
+
+    DynamoDB stores 3 copies of your data on high speed SSDs located in 3 different facilities in your region
+        Data is initially put on one SSD and then replicated across these 3 in a few seconds
+
+    Strongly consistent reads
+        For when we need the most up to date data absolutely
+        Must be requested consistently
+
+    Eventually consistent reads
+        May or may not reflect the latest copy because of the delay in full syncronization stated above
+        This is the default for reads in dynamoDB
+        50% cheaper
+
+
+Capacity Units
+
+    Requirement of having primary keys on all tables allows us to write efficient queries
+    Performance of a table can be controlled and tuned individually because of the independent nature of ddb tables
+    Must provision throughput capacity for each table that we create in ddb
+        allows us to ensure predictable performance
+
+    Can set up automatic rules to adjust throughput (autoscaling)
+    
+    Specify throughput through capacity units
+        Read capacity units(RCU)
+        write capacity units(WCU)
+        How dynamodb is priced
+
+    Pay Per use policy
+        Strongly consistent reads are 4kB/sec per unit
+        Eventually consistent reads are 8kB/sec per unit
+        writes are more expensive
+
+    one unit of capacity can handle one request per second
+
+    One RCU allows you to perform one strongly consistent read per second (4kB/s)
+        or 2 eventually consistent reads per second
+
+    Item sizes are rounded UP to the next KB to determine the required WCU    
+
+    Burst Capacity
+        to provide for occasional bursts or spikes
+        3 minutes of unused read and write capacity can be used for this
+            any more than this and requests will be throttled
+        
+        Affects partition behavior
+        
+        Maximum capacity that a single table partition can support is about 1000 WCUs or 3000 RCUs
+            
+
+Partitions
+
+    DDB stores data in partitions
+    
+    A block of memory
+        
+    1 partition = 10GB of data = 1000WCUs or 3000RCUs of throughput
+        if either of these are exceeded another partition will be provisioned
+
+    Capacity is equally distributed among partitions that are created
+
+    Once a partition is allocated, it will NOT be deallocated when you scale down the capacity
+        Therefore we must be careful when increasing capacity for the short term and then bringing it down
+        If we have too many partitions and not enough capacity, our throughput will suffer because of the capacity units being equally distributed among them
+
+Indexes
+
+    Can have a simple primary key or composite
+        simple consists of a single partition or hash key
+        composite consists of a simple primary key with a sort key or range key
+    
+    partition or hash key decides the target partition
+        chooses the partition with a hashing algo
+
+    Presense of a sort key make dynamodb place elements of table close to each other and sorted by the sort key
+
+    Scan operations are to be avoided as much as possible**
+
+
+Secondary Indexes
+    Can ONLY query on primary keys or secondary keys
+    If we need to query on a previously unindexed column, need to define a new index for that column
+        If this new index has the same partition key as the primary key, it is a Local Secondary
+
+    MUST create Local Secondary indexes at table create time!
+        Can create up to 5 per table
+    
+    Global Secondary Index
+        Partition key is different from the primary key of the table
+        Can create up to 5 global secondary indexes
+        Can be created Any Time!
+        Stored in their own partitions
+        Have their own throughput capacity units as well
+            NOT shared with capacity units of base table
+        Can ONLY perform EVENTUALLY CONSISTENT reads with these kinds of indexes
+        updated asyncly in the background when new items added to table
+        no uniqueness requirements for Global Secondary Indexes (unlike regular primary keys)
+

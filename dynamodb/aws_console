@@ -1,0 +1,21 @@
+Can only name a table on creation
+    Need to create a new table and transfer data to rename
+
+Primary key should be as varied as possible
+    String type has more possible values among the key types
+
+Number is a good sort key for obvious reasons
+
+Can not delete local secondary indexes once created!
+    Need to really think about what our local secondary indexes are going to be**
+
+Projected Attributes ** review later
+    decide which item attributes apart from partition and sort key we want to store in this particular index
+    affects the size of the index
+
+Filters are ALWAYS applied AFTER performing the query
+    Therefore will not affect the RCUs consumed
+
+
+
+
